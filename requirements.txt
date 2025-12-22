@@ -3,9 +3,12 @@ pandas
 numpy
 plotly
 statsmodels
+scipy
+patsy
 openpyxl
-openai
 xgboost
+scikit-learn
+
 
 
 
