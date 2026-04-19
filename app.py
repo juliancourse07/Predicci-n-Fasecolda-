@@ -28,7 +28,7 @@ from statsmodels.tsa.arima.model import ARIMA
 
 # ---------- Config ----------
 DEFAULT_SHEET_ID = "1VljNnZtRPDA3TkTUP6w8AviZCPIfIlqe"
-DEFAULT_GID = "293107109"
+DEFAULT_GID = "128994038"
 
 st.set_page_config(page_title="Industria · Forecast 2026 por Ciudad / Ramo", layout="wide")
 
