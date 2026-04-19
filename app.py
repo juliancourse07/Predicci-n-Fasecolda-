@@ -221,7 +221,14 @@ def preparar_primas(df_raw: pd.DataFrame) -> pd.DataFrame:
         st.warning("No se encontró la columna 'Codigo y Ramo' en la hoja de primas.")
         return pd.DataFrame()
 
-    df = df[df[cod_col].isin(RAMOS_FILTRO)].copy()
+    cod_clean = df[cod_col].astype(str).str.strip()
+    mask = cod_clean.isin(RAMOS_FILTRO)
+    if not mask.any():
+        # Fallback: regex for flexible matching
+        mask = cod_clean.str.upper().str.contains(
+            r"1.*R.*CIVIL|3.*R.*C.*PROFESIONAL", regex=True, na=False
+        )
+    df = df[mask].copy()
     if df.empty:
         st.warning("No hay datos para los ramos 1-R.CIVIL y 3-R.C.PROFESIONAL.")
         return pd.DataFrame()
@@ -577,7 +584,11 @@ if not df_primas_f.empty:
     )
     if len(ts_primas) >= MIN_MONTHS_REQUIRED:
         with st.spinner("🤖 Entrenando modelos de Primas (SARIMAX · XGBoost · LightGBM)…"):
-            resultados_primas = entrenar_modelos(ts_primas.to_json(), target_year=int(target_year))
+            try:
+                resultados_primas = entrenar_modelos(ts_primas.to_json(), target_year=int(target_year))
+            except Exception as exc:
+                st.error(f"❌ Error entrenando modelos de primas: {exc}")
+                resultados_primas = {}
     ts_cuota = (
         df_primas_f.groupby("FECHA")["Imp Prima Cuota"]
         .sum()
@@ -600,7 +611,11 @@ if not df_sin.empty and "Valor" in df_sin.columns:
     )
     if len(ts_sin) >= MIN_MONTHS_REQUIRED:
         with st.spinner("🤖 Entrenando modelos de Siniestros…"):
-            resultados_sin = entrenar_modelos(ts_sin.to_json(), target_year=int(target_year))
+            try:
+                resultados_sin = entrenar_modelos(ts_sin.to_json(), target_year=int(target_year))
+            except Exception as exc:
+                st.error(f"❌ Error entrenando modelos de siniestros: {exc}")
+                resultados_sin = {}
 else:
     ts_sin = pd.Series(dtype=float)
 
@@ -921,7 +936,7 @@ with tab3:
                 if model_name in resultados_primas:
                     idx = test_p.index if model_name == "SARIMAX" else ml_idx
                     fig_c.add_trace(go.Scatter(x=idx, y=resultados_primas[model_name]["pred_test"], name=model_name, line=dict(color=color, width=2, dash="dash")))
-            fig_c.add_vline(x=train_p.index[-1], line_dash="dot", line_color="gray", annotation_text="Inicio del pronóstico")
+            fig_c.add_vline(x=train_p.index[-1].strftime('%Y-%m-%d'), line_dash="dot", line_color="gray", annotation_text="Inicio del pronóstico")
             fig_c.update_layout(title="Comparación Modelos — Primas", xaxis_title="Fecha", yaxis_title="COP", height=480, hovermode="x unified")
             st.plotly_chart(fig_c, use_container_width=True)
 
@@ -1006,7 +1021,7 @@ with tab3:
                 if model_name in resultados_sin:
                     idx = test_s.index if model_name == "SARIMAX" else ml_idx_s
                     fig_cs.add_trace(go.Scatter(x=idx, y=resultados_sin[model_name]["pred_test"], name=model_name, line=dict(color=color, width=2, dash="dash")))
-            fig_cs.add_vline(x=train_s.index[-1], line_dash="dot", line_color="gray", annotation_text="Inicio del pronóstico")
+            fig_cs.add_vline(x=train_s.index[-1].strftime('%Y-%m-%d'), line_dash="dot", line_color="gray", annotation_text="Inicio del pronóstico")
             fig_cs.update_layout(title="Comparación Modelos — Siniestros", xaxis_title="Fecha", yaxis_title="COP", height=450, hovermode="x unified")
             st.plotly_chart(fig_cs, use_container_width=True)
 
