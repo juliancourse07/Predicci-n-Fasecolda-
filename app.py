@@ -34,9 +34,9 @@ from streamlit_folium import st_folium
 
 # ---------- Config ----------
 SHEET_ID = "1jhgIO0k5BTOpjCT2v1GveNCPkYA2tEu02LO1GyitD5k"
-GID_PRIMAS = "604069835"
+GID_PRIMAS = "1864315151"
 GID_SINIESTROS = "1221556540"
-RAMOS_FILTRO = ["1 - R. CIVIL", "3 - R. C. PROFESIONAL"]
+RAMOS_FILTRO = ["PROFESIONAL"]
 MESES_ESP = [
     "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
     "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
@@ -222,15 +222,10 @@ def preparar_primas(df_raw: pd.DataFrame) -> pd.DataFrame:
         return pd.DataFrame()
 
     cod_clean = df[cod_col].astype(str).str.strip()
-    mask = cod_clean.isin(RAMOS_FILTRO)
-    if not mask.any():
-        # Fallback: regex for flexible matching
-        mask = cod_clean.str.upper().str.contains(
-            r"1.*R.*CIVIL|3.*R.*C.*PROFESIONAL", regex=True, na=False
-        )
+    mask = cod_clean.str.upper().str.contains("PROFESIONAL", na=False)
     df = df[mask].copy()
     if df.empty:
-        st.warning("No hay datos para los ramos 1-R.CIVIL y 3-R.C.PROFESIONAL.")
+        st.warning("No hay datos para el ramo PROFESIONAL.")
         return pd.DataFrame()
 
     # Fecha
@@ -623,7 +618,7 @@ else:
 st.sidebar.markdown("---")
 st.sidebar.info(
     "**📊 Predicción Fasecolda**  \n"
-    "Ramos: R.Civil · R.C.Profesional  \n"
+    "Ramo: PROFESIONAL (Responsabilidad Civil y Responsabilidad Civil Profesional)  \n"
     "Modelos: SARIMAX · XGBoost · LightGBM"
 )
 
