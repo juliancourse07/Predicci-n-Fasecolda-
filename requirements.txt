@@ -2,12 +2,16 @@ streamlit
 pandas
 numpy
 plotly
+matplotlib
 statsmodels
 scipy
 patsy
 openpyxl
 xgboost
+lightgbm
 scikit-learn
+folium
+streamlit-folium
 
 
 
