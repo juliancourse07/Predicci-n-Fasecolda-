@@ -15,7 +15,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy import stats as scipy_stats
 import plotly.graph_objects as go
-from io import BytesIO
+from io import BytesIO, StringIO
 from typing import Optional, Dict, List, Tuple
 
 # Time series
@@ -349,7 +349,7 @@ def entrenar_modelos(ts_json: str, target_year: int = 2026) -> Dict:
     -------
     dict con resultados, métricas y pronósticos por modelo.
     """
-    ts = pd.read_json(ts_json, typ="series")
+    ts = pd.read_json(StringIO(ts_json), typ="series")
     ts.index = pd.to_datetime(ts.index)
     ts = ts.sort_index().asfreq("MS").interpolate(method="linear").dropna()
 
