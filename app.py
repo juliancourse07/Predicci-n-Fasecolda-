@@ -27,7 +27,7 @@ from statsmodels.tsa.statespace.sarimax import SARIMAX
 from statsmodels.tsa.arima.model import ARIMA
 
 # ---------- Config ----------
-DEFAULT_SHEET_ID = "1VljNnZtRPDA3TkTUP6w8AviZCPIfIlqe"
+DEFAULT_SHEET_ID = "1ThVwW3IbkL7Dw_Vrs9heT1QMiHDZw1Aj-n0XNbDi9i8"
 DEFAULT_GID = "128994038"
 
 st.set_page_config(page_title="Industria · Forecast 2026 por Ciudad / Ramo", layout="wide")
