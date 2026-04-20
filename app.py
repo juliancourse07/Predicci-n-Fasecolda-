@@ -219,10 +219,10 @@ def preparar_primas(df_raw: pd.DataFrame) -> pd.DataFrame:
     # Fecha
     fecha_col = _find_col(df, "mes") or _find_col(df, "fecha")
     if fecha_col:
-        df["FECHA"] = pd.to_datetime(df[fecha_col], dayfirst=True, errors="coerce")
+        df["Mes_yyyy"] = pd.to_datetime(df[fecha_col], dayfirst=True, errors="coerce")
     else:
-        df["FECHA"] = pd.NaT
-    df["FECHA"] = df["FECHA"].dt.to_period("M").dt.to_timestamp()
+        df["Mes_yyyy"] = pd.NaT
+    df["Mes_yyyy"] = df["Mes_yyyy"].dt.to_period("M").dt.to_timestamp()
 
     # Imp Prima (real) — columna G ≈ no contiene "cuota"
     imp_col = None
@@ -234,12 +234,12 @@ def preparar_primas(df_raw: pd.DataFrame) -> pd.DataFrame:
         if "imp" in cl and "cuota" in cl:
             cuota_col = col
 
-    df["Imp Prima"] = parse_number(df[imp_col]) if imp_col else np.nan
-    df["Imp Prima Cuota"] = parse_number(df[cuota_col]) if cuota_col else np.nan
+    df["Imp_Prima"] = parse_number(df[imp_col]) if imp_col else np.nan
+    df["Imp_Prima_Cuota"] = parse_number(df[cuota_col]) if cuota_col else np.nan
     cod_col = _find_col(df, "codigo") or _find_col(df, "ramo")
-    df["Codigo y Ramo"] = df[cod_col].astype(str).str.strip() if cod_col else "PROFESIONAL"
+    df["Código y Ramo"] = df[cod_col].astype(str).str.strip() if cod_col else "PROFESIONAL"
 
-    return df.dropna(subset=["FECHA"]).copy()
+    return df.dropna(subset=["Mes_yyyy"]).copy()
 
 
 def preparar_siniestros(df_raw: pd.DataFrame) -> pd.DataFrame:
@@ -530,7 +530,7 @@ df_sin = preparar_siniestros(df_sin_raw) if not df_sin_raw.empty else pd.DataFra
 
 # Apply ramo filter
 if not df_primas.empty and ramo_sel != "Ambos":
-    df_primas_f = df_primas[df_primas["Codigo y Ramo"] == ramo_sel].copy()
+    df_primas_f = df_primas[df_primas["Código y Ramo"] == ramo_sel].copy()
 else:
     df_primas_f = df_primas.copy()
 
@@ -538,7 +538,7 @@ else:
 c1, c2, c3 = st.columns(3)
 with c1:
     if not df_primas.empty:
-        st.success(f"✅ Primas: {len(df_primas):,} registros · Último dato: {df_primas['FECHA'].max().strftime('%b %Y')}")
+        st.success(f"✅ Primas: {len(df_primas):,} registros · Último dato: {df_primas['Mes_yyyy'].max().strftime('%b %Y')}")
     else:
         st.error("❌ Sin datos de primas")
 with c2:
@@ -548,7 +548,7 @@ with c2:
         st.warning("⚠️ Sin datos de siniestros")
 with c3:
     if not df_primas.empty:
-        ramos_disp = ", ".join(df_primas["Codigo y Ramo"].unique())
+        ramos_disp = ", ".join(df_primas["Código y Ramo"].unique())
         st.info(f"📋 Ramos disponibles: {ramos_disp}")
 
 st.markdown("---")
@@ -559,7 +559,7 @@ resultados_sin: Dict = {}
 
 if not df_primas_f.empty:
     ts_primas = (
-        df_primas_f.groupby("FECHA")["Imp Prima"]
+        df_primas_f.groupby("Mes_yyyy")["Imp_Prima"]
         .sum()
         .sort_index()
         .asfreq("MS")
@@ -574,7 +574,7 @@ if not df_primas_f.empty:
                 st.error(f"❌ Error entrenando modelos de primas: {exc}")
                 resultados_primas = {}
     ts_cuota = (
-        df_primas_f.groupby("FECHA")["Imp Prima Cuota"]
+        df_primas_f.groupby("Mes_yyyy")["Imp_Prima_Cuota"]
         .sum()
         .sort_index()
         .asfreq("MS")
@@ -679,10 +679,19 @@ with tab1:
                         line=dict(color='#2ca02c', width=2, dash='dashdot'),
                         hovertemplate='LightGBM: %{y:$,.0f}<extra></extra>'
                     ))
-                fig_primas.add_vline(
-                    x=train_p.index[-1],
-                    line_dash="dot", line_color="gray", line_width=2,
-                    annotation_text="Inicio del pronóstico"
+                fig_primas.add_shape(
+                    type="line",
+                    x0=train_p.index[-1], x1=train_p.index[-1],
+                    y0=0, y1=1,
+                    yref="paper",
+                    line=dict(color="gray", width=2, dash="dot")
+                )
+                fig_primas.add_annotation(
+                    x=train_p.index[-1], y=1,
+                    yref="paper",
+                    text="Inicio del pronóstico",
+                    showarrow=False,
+                    yshift=10
                 )
                 fig_primas.update_layout(
                     title=dict(text='Comparación de Modelos Predictivos — Primas', x=0.5, xanchor='center', font=dict(size=18, color='white')),
@@ -828,10 +837,19 @@ with tab2:
                         line=dict(color='#2ca02c', width=2, dash='dashdot'),
                         hovertemplate='LightGBM: %{y:$,.0f}<extra></extra>'
                     ))
-                fig_siniestros.add_vline(
-                    x=train_s.index[-1],
-                    line_dash="dot", line_color="gray", line_width=2,
-                    annotation_text="Inicio del pronóstico"
+                fig_siniestros.add_shape(
+                    type="line",
+                    x0=train_s.index[-1], x1=train_s.index[-1],
+                    y0=0, y1=1,
+                    yref="paper",
+                    line=dict(color="gray", width=2, dash="dot")
+                )
+                fig_siniestros.add_annotation(
+                    x=train_s.index[-1], y=1,
+                    yref="paper",
+                    text="Inicio del pronóstico",
+                    showarrow=False,
+                    yshift=10
                 )
                 fig_siniestros.update_layout(
                     title=dict(text='Comparación de Modelos Predictivos — Siniestros', x=0.5, xanchor='center', font=dict(size=18, color='white')),
@@ -1042,7 +1060,20 @@ with tab3:
                 if model_name in resultados_primas:
                     idx = test_p.index if model_name == "SARIMAX" else ml_idx
                     fig_c.add_trace(go.Scatter(x=idx, y=resultados_primas[model_name]["pred_test"], name=model_name, line=dict(color=color, width=2, dash="dash")))
-            fig_c.add_vline(x=train_p.index[-1], line_dash="dot", line_color="gray", annotation_text="Inicio del pronóstico")
+            fig_c.add_shape(
+                type="line",
+                x0=train_p.index[-1], x1=train_p.index[-1],
+                y0=0, y1=1,
+                yref="paper",
+                line=dict(color="gray", width=2, dash="dot")
+            )
+            fig_c.add_annotation(
+                x=train_p.index[-1], y=1,
+                yref="paper",
+                text="Inicio del pronóstico",
+                showarrow=False,
+                yshift=10
+            )
             fig_c.update_layout(title="Comparación Modelos — Primas", xaxis_title="Fecha", yaxis_title="COP", height=480, hovermode="x unified")
             st.plotly_chart(fig_c, use_container_width=True)
 
@@ -1127,7 +1158,20 @@ with tab3:
                 if model_name in resultados_sin:
                     idx = test_s.index if model_name == "SARIMAX" else ml_idx_s
                     fig_cs.add_trace(go.Scatter(x=idx, y=resultados_sin[model_name]["pred_test"], name=model_name, line=dict(color=color, width=2, dash="dash")))
-            fig_cs.add_vline(x=train_s.index[-1], line_dash="dot", line_color="gray", annotation_text="Inicio del pronóstico")
+            fig_cs.add_shape(
+                type="line",
+                x0=train_s.index[-1], x1=train_s.index[-1],
+                y0=0, y1=1,
+                yref="paper",
+                line=dict(color="gray", width=2, dash="dot")
+            )
+            fig_cs.add_annotation(
+                x=train_s.index[-1], y=1,
+                yref="paper",
+                text="Inicio del pronóstico",
+                showarrow=False,
+                yshift=10
+            )
             fig_cs.update_layout(title="Comparación Modelos — Siniestros", xaxis_title="Fecha", yaxis_title="COP", height=450, hovermode="x unified")
             st.plotly_chart(fig_cs, use_container_width=True)
 
