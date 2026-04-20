@@ -216,13 +216,14 @@ def preparar_primas(df_raw: pd.DataFrame) -> pd.DataFrame:
     df = df_raw.copy()
     df.columns = df.columns.str.strip()
 
-    # Fecha
+    # Fecha — crear columna interna FECHA para procesamiento de series temporales
     fecha_col = _find_col(df, "mes") or _find_col(df, "fecha")
     if fecha_col:
-        df["Mes_yyyy"] = pd.to_datetime(df[fecha_col], dayfirst=True, errors="coerce")
+        df["FECHA"] = pd.to_datetime(df[fecha_col], dayfirst=True, errors="coerce")
     else:
-        df["Mes_yyyy"] = pd.NaT
-    df["Mes_yyyy"] = df["Mes_yyyy"].dt.to_period("M").dt.to_timestamp()
+        df["FECHA"] = pd.NaT
+    # Convertir a period y guardar como Mes_yyyy (para display externo)
+    df["Mes_yyyy"] = df["FECHA"].dt.to_period("M").dt.to_timestamp()
 
     # Imp Prima (real) — columna G ≈ no contiene "cuota"
     imp_col = None
@@ -239,7 +240,7 @@ def preparar_primas(df_raw: pd.DataFrame) -> pd.DataFrame:
     cod_col = _find_col(df, "codigo") or _find_col(df, "ramo")
     df["Código y Ramo"] = df[cod_col].astype(str).str.strip() if cod_col else "PROFESIONAL"
 
-    return df.dropna(subset=["Mes_yyyy"]).copy()
+    return df.dropna(subset=["FECHA"]).copy()
 
 
 def preparar_siniestros(df_raw: pd.DataFrame) -> pd.DataFrame:
@@ -559,7 +560,7 @@ resultados_sin: Dict = {}
 
 if not df_primas_f.empty:
     ts_primas = (
-        df_primas_f.groupby("Mes_yyyy")["Imp_Prima"]
+        df_primas_f.groupby("FECHA")["Imp_Prima"]
         .sum()
         .sort_index()
         .asfreq("MS")
@@ -574,7 +575,7 @@ if not df_primas_f.empty:
                 st.error(f"❌ Error entrenando modelos de primas: {exc}")
                 resultados_primas = {}
     ts_cuota = (
-        df_primas_f.groupby("Mes_yyyy")["Imp_Prima_Cuota"]
+        df_primas_f.groupby("FECHA")["Imp_Prima_Cuota"]
         .sum()
         .sort_index()
         .asfreq("MS")
@@ -661,24 +662,48 @@ with tab1:
                 if "SARIMAX" in resultados_primas:
                     fig_primas.add_trace(go.Scatter(
                         x=test_p.index, y=resultados_primas["SARIMAX"]["pred_test"],
-                        mode='lines', name='Pronóstico SARIMAX',
+                        mode='lines', name='Pronóstico SARIMAX (Test)',
                         line=dict(color='#1f77b4', width=2, dash='dash'),
                         hovertemplate='SARIMAX: %{y:$,.0f}<extra></extra>'
                     ))
+                    if "fc_2026" in resultados_primas["SARIMAX"] and not resultados_primas["SARIMAX"]["fc_2026"].empty:
+                        fc_sar = resultados_primas["SARIMAX"]["fc_2026"]
+                        fig_primas.add_trace(go.Scatter(
+                            x=fc_sar.index, y=fc_sar.values,
+                            mode='lines', name='Pronóstico SARIMAX 2026',
+                            line=dict(color='#1f77b4', width=2.5),
+                            hovertemplate='SARIMAX 2026: %{y:$,.0f}<extra></extra>'
+                        ))
                 if "XGBoost" in resultados_primas:
                     fig_primas.add_trace(go.Scatter(
                         x=ml_idx_p, y=resultados_primas["XGBoost"]["pred_test"],
-                        mode='lines', name='Pronóstico XGBoost',
+                        mode='lines', name='Pronóstico XGBoost (Test)',
                         line=dict(color='#ff7f0e', width=2, dash='dot'),
                         hovertemplate='XGBoost: %{y:$,.0f}<extra></extra>'
                     ))
+                    if "fc_2026" in resultados_primas["XGBoost"] and not resultados_primas["XGBoost"]["fc_2026"].empty:
+                        fc_xgb = resultados_primas["XGBoost"]["fc_2026"]
+                        fig_primas.add_trace(go.Scatter(
+                            x=fc_xgb.index, y=fc_xgb.values,
+                            mode='lines', name='Pronóstico XGBoost 2026',
+                            line=dict(color='#ff7f0e', width=2.5),
+                            hovertemplate='XGBoost 2026: %{y:$,.0f}<extra></extra>'
+                        ))
                 if "LightGBM" in resultados_primas:
                     fig_primas.add_trace(go.Scatter(
                         x=ml_idx_p, y=resultados_primas["LightGBM"]["pred_test"],
-                        mode='lines', name='Pronóstico LightGBM',
+                        mode='lines', name='Pronóstico LightGBM (Test)',
                         line=dict(color='#2ca02c', width=2, dash='dashdot'),
                         hovertemplate='LightGBM: %{y:$,.0f}<extra></extra>'
                     ))
+                    if "fc_2026" in resultados_primas["LightGBM"] and not resultados_primas["LightGBM"]["fc_2026"].empty:
+                        fc_lgb = resultados_primas["LightGBM"]["fc_2026"]
+                        fig_primas.add_trace(go.Scatter(
+                            x=fc_lgb.index, y=fc_lgb.values,
+                            mode='lines', name='Pronóstico LightGBM 2026',
+                            line=dict(color='#2ca02c', width=2.5),
+                            hovertemplate='LightGBM 2026: %{y:$,.0f}<extra></extra>'
+                        ))
                 fig_primas.add_shape(
                     type="line",
                     x0=train_p.index[-1], x1=train_p.index[-1],
@@ -694,7 +719,7 @@ with tab1:
                     yshift=10
                 )
                 fig_primas.update_layout(
-                    title=dict(text='Comparación de Modelos Predictivos — Primas', x=0.5, xanchor='center', font=dict(size=18, color='white')),
+                    title=dict(text='Comparación de Modelos Predictivos — Primas (Test + 2026)', x=0.5, xanchor='center', font=dict(size=18, color='white')),
                     xaxis_title='Fecha', yaxis_title='Primas ($)',
                     hovermode='x unified', template='plotly_dark', height=600,
                     legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
@@ -819,24 +844,48 @@ with tab2:
                 if "SARIMAX" in resultados_sin:
                     fig_siniestros.add_trace(go.Scatter(
                         x=test_s.index, y=resultados_sin["SARIMAX"]["pred_test"],
-                        mode='lines', name='Pronóstico SARIMAX',
+                        mode='lines', name='Pronóstico SARIMAX (Test)',
                         line=dict(color='#1f77b4', width=2, dash='dash'),
                         hovertemplate='SARIMAX: %{y:$,.0f}<extra></extra>'
                     ))
+                    if "fc_2026" in resultados_sin["SARIMAX"] and not resultados_sin["SARIMAX"]["fc_2026"].empty:
+                        fc_sar_s = resultados_sin["SARIMAX"]["fc_2026"]
+                        fig_siniestros.add_trace(go.Scatter(
+                            x=fc_sar_s.index, y=fc_sar_s.values,
+                            mode='lines', name='Pronóstico SARIMAX 2026',
+                            line=dict(color='#1f77b4', width=2.5),
+                            hovertemplate='SARIMAX 2026: %{y:$,.0f}<extra></extra>'
+                        ))
                 if "XGBoost" in resultados_sin:
                     fig_siniestros.add_trace(go.Scatter(
                         x=ml_idx_s2, y=resultados_sin["XGBoost"]["pred_test"],
-                        mode='lines', name='Pronóstico XGBoost',
+                        mode='lines', name='Pronóstico XGBoost (Test)',
                         line=dict(color='#ff7f0e', width=2, dash='dot'),
                         hovertemplate='XGBoost: %{y:$,.0f}<extra></extra>'
                     ))
+                    if "fc_2026" in resultados_sin["XGBoost"] and not resultados_sin["XGBoost"]["fc_2026"].empty:
+                        fc_xgb_s = resultados_sin["XGBoost"]["fc_2026"]
+                        fig_siniestros.add_trace(go.Scatter(
+                            x=fc_xgb_s.index, y=fc_xgb_s.values,
+                            mode='lines', name='Pronóstico XGBoost 2026',
+                            line=dict(color='#ff7f0e', width=2.5),
+                            hovertemplate='XGBoost 2026: %{y:$,.0f}<extra></extra>'
+                        ))
                 if "LightGBM" in resultados_sin:
                     fig_siniestros.add_trace(go.Scatter(
                         x=ml_idx_s2, y=resultados_sin["LightGBM"]["pred_test"],
-                        mode='lines', name='Pronóstico LightGBM',
+                        mode='lines', name='Pronóstico LightGBM (Test)',
                         line=dict(color='#2ca02c', width=2, dash='dashdot'),
                         hovertemplate='LightGBM: %{y:$,.0f}<extra></extra>'
                     ))
+                    if "fc_2026" in resultados_sin["LightGBM"] and not resultados_sin["LightGBM"]["fc_2026"].empty:
+                        fc_lgb_s = resultados_sin["LightGBM"]["fc_2026"]
+                        fig_siniestros.add_trace(go.Scatter(
+                            x=fc_lgb_s.index, y=fc_lgb_s.values,
+                            mode='lines', name='Pronóstico LightGBM 2026',
+                            line=dict(color='#2ca02c', width=2.5),
+                            hovertemplate='LightGBM 2026: %{y:$,.0f}<extra></extra>'
+                        ))
                 fig_siniestros.add_shape(
                     type="line",
                     x0=train_s.index[-1], x1=train_s.index[-1],
@@ -852,7 +901,7 @@ with tab2:
                     yshift=10
                 )
                 fig_siniestros.update_layout(
-                    title=dict(text='Comparación de Modelos Predictivos — Siniestros', x=0.5, xanchor='center', font=dict(size=18, color='white')),
+                    title=dict(text='Comparación de Modelos Predictivos — Siniestros (Test + 2026)', x=0.5, xanchor='center', font=dict(size=18, color='white')),
                     xaxis_title='Fecha', yaxis_title='Siniestros ($)',
                     hovermode='x unified', template='plotly_dark', height=600,
                     legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
