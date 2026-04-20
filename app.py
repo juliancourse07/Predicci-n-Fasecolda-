@@ -680,9 +680,9 @@ with tab1:
                         hovertemplate='LightGBM: %{y:$,.0f}<extra></extra>'
                     ))
                 fig_primas.add_vline(
-                    x=str(train_p.index[-1])[:10],
+                    x=train_p.index[-1],
                     line_dash="dot", line_color="gray", line_width=2,
-                    annotation_text="Inicio del pronóstico", annotation_position="top"
+                    annotation_text="Inicio del pronóstico"
                 )
                 fig_primas.update_layout(
                     title=dict(text='Comparación de Modelos Predictivos — Primas', x=0.5, xanchor='center', font=dict(size=18, color='white')),
@@ -829,7 +829,7 @@ with tab2:
                         hovertemplate='LightGBM: %{y:$,.0f}<extra></extra>'
                     ))
                 fig_siniestros.add_vline(
-                    x=str(train_s.index[-1])[:10],
+                    x=train_s.index[-1],
                     line_dash="dot", line_color="gray", line_width=2,
                     annotation_text="Inicio del pronóstico"
                 )
@@ -1042,7 +1042,7 @@ with tab3:
                 if model_name in resultados_primas:
                     idx = test_p.index if model_name == "SARIMAX" else ml_idx
                     fig_c.add_trace(go.Scatter(x=idx, y=resultados_primas[model_name]["pred_test"], name=model_name, line=dict(color=color, width=2, dash="dash")))
-            fig_c.add_vline(x=str(train_p.index[-1])[:10], line_dash="dot", line_color="gray", annotation_text="Inicio del pronóstico")
+            fig_c.add_vline(x=train_p.index[-1], line_dash="dot", line_color="gray", annotation_text="Inicio del pronóstico")
             fig_c.update_layout(title="Comparación Modelos — Primas", xaxis_title="Fecha", yaxis_title="COP", height=480, hovermode="x unified")
             st.plotly_chart(fig_c, use_container_width=True)
 
@@ -1127,7 +1127,7 @@ with tab3:
                 if model_name in resultados_sin:
                     idx = test_s.index if model_name == "SARIMAX" else ml_idx_s
                     fig_cs.add_trace(go.Scatter(x=idx, y=resultados_sin[model_name]["pred_test"], name=model_name, line=dict(color=color, width=2, dash="dash")))
-            fig_cs.add_vline(x=str(train_s.index[-1])[:10], line_dash="dot", line_color="gray", annotation_text="Inicio del pronóstico")
+            fig_cs.add_vline(x=train_s.index[-1], line_dash="dot", line_color="gray", annotation_text="Inicio del pronóstico")
             fig_cs.update_layout(title="Comparación Modelos — Siniestros", xaxis_title="Fecha", yaxis_title="COP", height=450, hovermode="x unified")
             st.plotly_chart(fig_cs, use_container_width=True)
 
