@@ -210,23 +210,11 @@ def _find_col(df: pd.DataFrame, *keywords) -> Optional[str]:
 
 
 def preparar_primas(df_raw: pd.DataFrame) -> pd.DataFrame:
-    """Filtra y limpia el DataFrame de primas."""
+    """Limpia el DataFrame de primas (sin filtrado — la hoja ya contiene sólo PROFESIONAL)."""
     if df_raw.empty:
         return pd.DataFrame()
     df = df_raw.copy()
     df.columns = df.columns.str.strip()
-
-    cod_col = _find_col(df, "codigo") or _find_col(df, "ramo")
-    if cod_col is None:
-        st.warning("No se encontró la columna 'Codigo y Ramo' en la hoja de primas.")
-        return pd.DataFrame()
-
-    cod_clean = df[cod_col].astype(str).str.strip()
-    mask = cod_clean.str.upper().str.contains("PROFESIONAL", na=False)
-    df = df[mask].copy()
-    if df.empty:
-        st.warning("No hay datos para el ramo PROFESIONAL.")
-        return pd.DataFrame()
 
     # Fecha
     fecha_col = _find_col(df, "mes") or _find_col(df, "fecha")
@@ -248,7 +236,8 @@ def preparar_primas(df_raw: pd.DataFrame) -> pd.DataFrame:
 
     df["Imp Prima"] = parse_number(df[imp_col]) if imp_col else np.nan
     df["Imp Prima Cuota"] = parse_number(df[cuota_col]) if cuota_col else np.nan
-    df["Codigo y Ramo"] = df[cod_col].astype(str).str.strip()
+    cod_col = _find_col(df, "codigo") or _find_col(df, "ramo")
+    df["Codigo y Ramo"] = df[cod_col].astype(str).str.strip() if cod_col else "PROFESIONAL"
 
     return df.dropna(subset=["FECHA"]).copy()
 
@@ -649,6 +638,62 @@ with tab1:
         k3.metric(f"💰 Total {cur_yr}", fmt_cop(sum_yr))
         k4.metric("🎯 Cumplimiento vs Cuota", f"{pct_cumpl:.1f}%")
 
+        # Comparación de Modelos Predictivos — Primas
+        if resultados_primas:
+            train_p = resultados_primas.get("_train", pd.Series(dtype=float))
+            test_p = resultados_primas.get("_test", pd.Series(dtype=float))
+            if not train_p.empty and not test_p.empty:
+                st.subheader("📈 Comparación de Modelos Predictivos — Primas")
+                ml_idx_p = resultados_primas.get("_ml_test_index", test_p.index)
+                fig_primas = go.Figure()
+                fig_primas.add_trace(go.Scatter(
+                    x=train_p.index, y=train_p.values,
+                    mode='lines', name='Histórico (Train)',
+                    line=dict(color='#2f5597', width=2.5),
+                    hovertemplate='%{y:$,.0f}<extra></extra>'
+                ))
+                fig_primas.add_trace(go.Scatter(
+                    x=test_p.index, y=test_p.values,
+                    mode='lines', name='Real (Test)',
+                    line=dict(color='#d62728', width=3),
+                    hovertemplate='%{y:$,.0f}<extra></extra>'
+                ))
+                if "SARIMAX" in resultados_primas:
+                    fig_primas.add_trace(go.Scatter(
+                        x=test_p.index, y=resultados_primas["SARIMAX"]["pred_test"],
+                        mode='lines', name='Pronóstico SARIMAX',
+                        line=dict(color='#1f77b4', width=2, dash='dash'),
+                        hovertemplate='SARIMAX: %{y:$,.0f}<extra></extra>'
+                    ))
+                if "XGBoost" in resultados_primas:
+                    fig_primas.add_trace(go.Scatter(
+                        x=ml_idx_p, y=resultados_primas["XGBoost"]["pred_test"],
+                        mode='lines', name='Pronóstico XGBoost',
+                        line=dict(color='#ff7f0e', width=2, dash='dot'),
+                        hovertemplate='XGBoost: %{y:$,.0f}<extra></extra>'
+                    ))
+                if "LightGBM" in resultados_primas:
+                    fig_primas.add_trace(go.Scatter(
+                        x=ml_idx_p, y=resultados_primas["LightGBM"]["pred_test"],
+                        mode='lines', name='Pronóstico LightGBM',
+                        line=dict(color='#2ca02c', width=2, dash='dashdot'),
+                        hovertemplate='LightGBM: %{y:$,.0f}<extra></extra>'
+                    ))
+                fig_primas.add_vline(
+                    x=train_p.index[-1].strftime('%Y-%m-%d'),
+                    line_dash="dot", line_color="gray", line_width=2,
+                    annotation_text="Inicio del pronóstico", annotation_position="top"
+                )
+                fig_primas.update_layout(
+                    title=dict(text='Comparación de Modelos Predictivos — Primas', x=0.5, xanchor='center', font=dict(size=18, color='white')),
+                    xaxis_title='Fecha', yaxis_title='Primas ($)',
+                    hovermode='x unified', template='plotly_dark', height=600,
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                    margin=dict(l=80, r=80, t=100, b=80)
+                )
+                fig_primas.update_yaxes(tickformat='$,.0f')
+                st.plotly_chart(fig_primas, use_container_width=True)
+
         # Histórico Primas vs Cuota
         st.subheader("📈 Histórico: Primas vs Presupuesto (Cuota)")
         df_comp = pd.DataFrame({"Primas Reales": ts_primas, "Presupuesto (Cuota)": ts_cuota}).dropna(subset=["Primas Reales"])
@@ -741,6 +786,62 @@ with tab2:
         fig_sin_h.add_trace(go.Scatter(x=ts_sin.index, y=ts_sin.values, fill="tozeroy", name="Siniestros", line=dict(color="#e74c3c", width=2)))
         fig_sin_h.update_layout(title="Evolución Histórica de Siniestros", xaxis_title="Fecha", yaxis_title="COP", height=320)
         st.plotly_chart(fig_sin_h, use_container_width=True)
+
+        # Comparación de Modelos Predictivos — Siniestros
+        if resultados_sin:
+            train_s = resultados_sin.get("_train", pd.Series(dtype=float))
+            test_s = resultados_sin.get("_test", pd.Series(dtype=float))
+            if not train_s.empty and not test_s.empty:
+                st.subheader("📈 Comparación de Modelos Predictivos — Siniestros")
+                ml_idx_s2 = resultados_sin.get("_ml_test_index", test_s.index)
+                fig_siniestros = go.Figure()
+                fig_siniestros.add_trace(go.Scatter(
+                    x=train_s.index, y=train_s.values,
+                    mode='lines', name='Histórico (Train)',
+                    line=dict(color='#2f5597', width=2.5),
+                    hovertemplate='%{y:$,.0f}<extra></extra>'
+                ))
+                fig_siniestros.add_trace(go.Scatter(
+                    x=test_s.index, y=test_s.values,
+                    mode='lines', name='Real (Test)',
+                    line=dict(color='#d62728', width=3),
+                    hovertemplate='%{y:$,.0f}<extra></extra>'
+                ))
+                if "SARIMAX" in resultados_sin:
+                    fig_siniestros.add_trace(go.Scatter(
+                        x=test_s.index, y=resultados_sin["SARIMAX"]["pred_test"],
+                        mode='lines', name='Pronóstico SARIMAX',
+                        line=dict(color='#1f77b4', width=2, dash='dash'),
+                        hovertemplate='SARIMAX: %{y:$,.0f}<extra></extra>'
+                    ))
+                if "XGBoost" in resultados_sin:
+                    fig_siniestros.add_trace(go.Scatter(
+                        x=ml_idx_s2, y=resultados_sin["XGBoost"]["pred_test"],
+                        mode='lines', name='Pronóstico XGBoost',
+                        line=dict(color='#ff7f0e', width=2, dash='dot'),
+                        hovertemplate='XGBoost: %{y:$,.0f}<extra></extra>'
+                    ))
+                if "LightGBM" in resultados_sin:
+                    fig_siniestros.add_trace(go.Scatter(
+                        x=ml_idx_s2, y=resultados_sin["LightGBM"]["pred_test"],
+                        mode='lines', name='Pronóstico LightGBM',
+                        line=dict(color='#2ca02c', width=2, dash='dashdot'),
+                        hovertemplate='LightGBM: %{y:$,.0f}<extra></extra>'
+                    ))
+                fig_siniestros.add_vline(
+                    x=train_s.index[-1].strftime('%Y-%m-%d'),
+                    line_dash="dot", line_color="gray", line_width=2,
+                    annotation_text="Inicio del pronóstico"
+                )
+                fig_siniestros.update_layout(
+                    title=dict(text='Comparación de Modelos Predictivos — Siniestros', x=0.5, xanchor='center', font=dict(size=18, color='white')),
+                    xaxis_title='Fecha', yaxis_title='Siniestros ($)',
+                    hovermode='x unified', template='plotly_dark', height=600,
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                    margin=dict(l=80, r=80, t=100, b=80)
+                )
+                fig_siniestros.update_yaxes(tickformat='$,.0f')
+                st.plotly_chart(fig_siniestros, use_container_width=True)
 
         # Alert map
         st.subheader("🗺️ Mapa de Alertas por Municipio")
@@ -865,9 +966,17 @@ with tab2:
 
             # Insights
             st.subheader("💡 Insights y Recomendaciones")
-            for _, row in df_alertas.iterrows():
-                nivel = row["Nivel Alerta"]
+            orden_niveles = {"CRÍTICO": 1, "ALTO": 2, "MEDIO": 3, "MODERADO": 4, "BAJO": 5}
+            df_alertas_ord = df_alertas.copy()
+            df_alertas_ord["_orden"] = df_alertas_ord["Nivel Alerta"].map(orden_niveles).fillna(5)
+            df_alertas_ord = df_alertas_ord.sort_values("_orden")
+            insights_generados: set = set()
+            bajos_ciudades: List[str] = []
+            for _, row in df_alertas_ord.iterrows():
                 ciudad = row["Ciudad"]
+                if ciudad in insights_generados:
+                    continue
+                nivel = row["Nivel Alerta"]
                 desv = row["Desviación vs Histórico (%)"]
                 if nivel == "CRÍTICO":
                     st.error(f"🚨 **{ciudad}** (CRÍTICO): Incremento esperado **{desv:.1f}%**. ACCIÓN: Revisar suscripción, aumentar reservas técnicas y evaluar reaseguro.")
@@ -875,9 +984,11 @@ with tab2:
                     st.warning(f"⚠️ **{ciudad}** (ALTO): Incremento proyectado **{desv:.1f}%**. ACCIÓN: Monitoreo cercano, ajustar primas y condiciones de cobertura.")
                 elif nivel == "MEDIO":
                     st.info(f"📊 **{ciudad}** (MEDIO): Variación esperada **{desv:.1f}%**. ACCIÓN: Seguimiento mensual, revisar tendencias del mercado local.")
-            bajos = df_alertas[df_alertas["Nivel Alerta"].isin(["BAJO", "MODERADO"])]
-            if len(bajos):
-                st.success(f"✅ **{len(bajos)} ciudades** con nivel BAJO/MODERADO: comportamiento dentro de parámetros históricos normales.")
+                else:
+                    bajos_ciudades.append(ciudad)
+                insights_generados.add(ciudad)
+            if bajos_ciudades:
+                st.success(f"✅ **{len(bajos_ciudades)} ciudades** con nivel BAJO/MODERADO: comportamiento dentro de parámetros históricos normales.")
 
             # Sábana siniestros
             if mejor_sin and "fc_2026" in resultados_sin.get(mejor_sin, {}) and not resultados_sin[mejor_sin]["fc_2026"].empty:
