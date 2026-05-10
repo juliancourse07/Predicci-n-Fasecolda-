@@ -343,6 +343,7 @@ def entrenar_modelos(ts_json: str, target_year: int = 2026) -> Dict:
     """
     ts = pd.read_json(StringIO(ts_json), typ="series")
     ts.index = pd.to_datetime(ts.index)
+    ts = pd.to_numeric(ts, errors="coerce")
     ts = ts.sort_index().asfreq("MS").interpolate(method="linear").dropna()
 
     if len(ts) < MIN_MONTHS_REQUIRED:
@@ -567,6 +568,7 @@ if not df_primas_f.empty:
         .interpolate(method="linear")
         .dropna()
     )
+    ts_primas = pd.to_numeric(ts_primas, errors="coerce").dropna()
     if len(ts_primas) >= MIN_MONTHS_REQUIRED:
         with st.spinner("🤖 Entrenando modelos de Primas (SARIMAX · XGBoost · LightGBM)…"):
             try:
@@ -594,6 +596,7 @@ if not df_sin.empty and "Valor" in df_sin.columns:
         .interpolate(method="linear")
         .dropna()
     )
+    ts_sin = pd.to_numeric(ts_sin, errors="coerce").dropna()
     if len(ts_sin) >= MIN_MONTHS_REQUIRED:
         with st.spinner("🤖 Entrenando modelos de Siniestros…"):
             try:
